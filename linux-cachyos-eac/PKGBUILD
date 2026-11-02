@@ -213,6 +213,11 @@ else
     _pkgsuffix=cachyos-eac
 fi
 
+# Local only, not for CachyOS: a name of our own, so this build sits beside
+# CachyOS's linux-cachyos-eac instead of replacing it.
+: "${_custom_suffix:=}"
+[ -n "$_custom_suffix" ] && _pkgsuffix="${_pkgsuffix}-${_custom_suffix}"
+
 pkgbase="linux-$_pkgsuffix"
 _major=7.3
 _minor=1
