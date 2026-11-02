@@ -972,7 +972,6 @@ _package-simagic-ff() {
     pkgdesc="simagic-ff force feedback driver for Simagic wheel bases, for the $pkgbase kernel"
     depends=("$pkgbase=$_kernver")
     provides=(SIMAGIC-FF-MODULE)
-    conflicts=(simagic-ff-dkms)
     license=('GPL-2.0-only')
 
     cd "$_srcname"
