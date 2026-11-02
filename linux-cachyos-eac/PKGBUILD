@@ -131,6 +131,12 @@
 # Replaces requirement for r8125-dkms
 : "${_build_r8125:=no}"
 
+# Builds the simagic-ff force feedback driver for Simagic wheel bases and
+# packages it into its own package, signed with the kernel's own key, so it
+# loads with module.sig_enforce=1.  Replaces simagic-ff-dkms, which can't load
+# on this kernel.
+: "${_build_simagic_ff:=no}"
+
 # Build a debug package with non-stripped vmlinux
 : "${_build_debug:=no}"
 
@@ -706,6 +712,12 @@ build() {
         make "${BUILD_FLAGS[@]}" KERNELDIR="$srcdir/$_srcname" modules
     fi
 
+    if [ "$_build_simagic_ff" = "yes" ]; then
+        # Its own Makefile builds against the running kernel, so call
+        # kbuild directly with its Kbuild file.
+        make "${BUILD_FLAGS[@]}" -C "${srcdir}/${_srcname}" M="${srcdir}/simagic-ff" modules
+    fi
+
 }
 
 _package() {
@@ -956,6 +968,24 @@ _package-r8125() {
     echo "install r8169 /usr/bin/modprobe r8125 || /usr/bin/modprobe --ignore-install r8169" > "${pkgdir}/usr/lib/modprobe.d/${pkgname}.conf"
 }
 
+_package-simagic-ff() {
+    pkgdesc="simagic-ff force feedback driver for Simagic wheel bases, for the $pkgbase kernel"
+    depends=("$pkgbase=$_kernver")
+    provides=(SIMAGIC-FF-MODULE)
+    conflicts=(simagic-ff-dkms)
+    license=('GPL-2.0-only')
+
+    cd "$_srcname"
+    local modulesdir="$pkgdir/usr/lib/modules/$(<version)/extramodules"
+
+    cd "${srcdir}/simagic-ff"
+    install -dm755 "${modulesdir}"
+    install -m644 hid-simagic-ff.ko "${modulesdir}"
+
+    _sign_modules "${modulesdir}"
+    find "$pkgdir" -name '*.ko' -exec zstd --rm -19 -T0 {} +
+}
+
 pkgname=("$pkgbase")
 [ "$_build_debug" = "yes" ] && pkgname+=("$pkgbase-dbg")
 pkgname+=("$pkgbase-headers")
@@ -963,6 +993,7 @@ pkgname+=("$pkgbase-headers")
 [ "$_build_nvidia_open" = "yes" ] && pkgname+=("$pkgbase-nvidia-open")
 [ "$_build_nvidia_580xx" = "yes" ] && pkgname+=("$pkgbase-nvidia-580xx")
 [ "$_build_r8125" = "yes" ] && pkgname+=("$pkgbase-r8125")
+[ "$_build_simagic_ff" = "yes" ] && pkgname+=("$pkgbase-simagic-ff")
 for _p in "${pkgname[@]}"; do
     eval "package_$_p() {
     $(declare -f "_package${_p#$pkgbase}")
@@ -982,3 +1013,12 @@ b2sums=('b744477e1202ae7c63020645fdd923625da6edd2bde61d01d9c7755e6d9628fc3fb00e6
         '69315e16040d32ffa922dfbc0a9dc96625ccc42306e1f724cadeb0f597d434a13e7a391e54ea88949c095c4e29a7f9af220b6722711efb4316c0220fab8fc63f'
         '05a3cc4954a37897d08e93e8ea1726fc395a12cfb1509f09560bdcf0ae14ed4ca518fda566a618c92db0fb6573e3ed7d02172dd76a3b145982060e060525365b'
         'e07c8366bb0c8aece1f917d60719fb365e30d5bf652abcb6bc319a08093b172f717c593f8ee108bdce951de8b4800ea4a01f9525df01e5082990327ca58f2f11')
+# simagic-ff goes last, after the checksums, so its SKIP lines up with it
+# whatever else is switched on.  Pinned, so every kernel build gets the
+# driver that was tested with it.
+_simagic_ff_commit=6fa8c4bc6e9ad09e3913630978f742785fdf6428
+if [ "$_build_simagic_ff" = "yes" ]; then
+    makedepends+=(git)
+    source+=("git+https://github.com/JacKeTUs/simagic-ff.git#commit=${_simagic_ff_commit}")
+    b2sums+=('SKIP')
+fi
